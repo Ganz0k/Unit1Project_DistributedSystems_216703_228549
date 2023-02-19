@@ -9,11 +9,12 @@ package template;
  * @author luisg
  */
 public class Person {
-    
+
     private String name;
     private float weight;
     private float height;
-    private float bmi;
+    private Float bmi;
+    private String result;
 
     public Person(String name, float weight, float height) {
         this.name = name;
@@ -45,16 +46,24 @@ public class Person {
         this.height = height;
     }
 
-    public float getBmi() {
+    public Float getBmi() {
         return bmi;
     }
 
-    public void setBmi(float bmi) {
+    public void setBmi(Float bmi) {
         this.bmi = bmi;
+    }
+
+    public String getResult() {
+        return result;
+    }
+
+    public void setResult(String result) {
+        this.result = result;
     }
 
     @Override
     public String toString() {
-        return "Person{" + "name=" + name + ", weight=" + weight + ", height=" + height + ", bmi=" + bmi + '}';
+        return "Person{" + "name=" + name + ", weight=" + weight + ", height=" + height + ", bmi=" + bmi + ", result=" + result + '}';
     }
 }
