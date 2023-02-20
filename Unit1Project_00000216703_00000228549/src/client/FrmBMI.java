@@ -4,17 +4,123 @@
  */
 package client;
 
+import com.google.gson.Gson;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Scanner;
+import javax.swing.JOptionPane;
+import middleware.Middleware;
+import template.Person;
+
 /**
+ * Frame that allows the client to give their name, weight (kgs) and height
+ * (mts) to then calculate their BMI and health result
  *
- * @author luisg
+ * @author Jesús Ricardo Ortega Sánchez | 00000216703 Luis Gonzalo Cervantes
+ * Rivera | 00000228549
  */
 public class FrmBMI extends javax.swing.JFrame {
+
+    private DatagramSocket udpSocket;
+    private Middleware middleware = new Middleware();
 
     /**
      * Creates new form FrmBMI
      */
     public FrmBMI() {
         initComponents();
+
+        try {
+            udpSocket = new DatagramSocket();
+        } catch (IOException ioe) {
+            errorMessage(ioe.getMessage());
+        }
+    }
+
+    /**
+     * Shows an error message to the client.
+     *
+     * @param message error message
+     */
+    private void errorMessage(String message) {
+        JOptionPane.showMessageDialog(this, message, "ERROR", JOptionPane.ERROR_MESSAGE);
+    }
+
+    /**
+     * Clears the JSON file in case there was data already on it
+     *
+     * @throws IOException IOException
+     */
+    private void clearJsonFile() throws IOException {
+        PrintWriter eraser = new PrintWriter(new FileWriter("jsonFiles\\person.json"));
+        eraser.close();
+    }
+
+    /**
+     * Calculates the BMI by sending an object person parsed to a json file and
+     * converted to a byte array to the server and then receives another byte
+     * array to turn into a json file and parse back to a Person object.
+     *
+     * @throws IOException IOException
+     */
+    private void calculateBMI() throws IOException {
+        if (textName.getText().isBlank() || textWeight.getText().isBlank() || textHeight.getText().isBlank()) {
+            JOptionPane.showMessageDialog(this, "Please fill all of the blank fields before continuing", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        //First we create the person object with the parameter given by the client
+        String name = this.textName.getText();
+        float weight = Float.parseFloat(this.textWeight.getText());
+        float height = Float.parseFloat(this.textHeight.getText());
+        Person person = new Person(name, weight, height);
+        clearJsonFile();
+
+        //We parse the person object to JSON format with the help of the Gson jar
+        //And then we print it into the person.json file
+        Gson gson = new Gson();
+        String personToJson = gson.toJson(person);
+        PrintWriter output = new PrintWriter(new FileWriter("jsonFiles\\person.json"));
+        output.println(personToJson);
+        output.flush();
+
+        //Now we convert the file to a bytes array and call the middleware to
+        //help us send it to the server
+        File fileSent = new File("jsonFiles\\person.json");
+        byte[] buffer = new byte[(int) Files.size(fileSent.toPath())];
+        buffer = Files.readAllBytes(fileSent.toPath());
+        middleware.sendToServer(buffer, udpSocket);
+        output.close();
+
+        //We prepare a second buffer to receive a DatagramPacket from the server
+        //so it now contains the person's BMI and health result
+        byte[] buffer2 = new byte[4096];
+        DatagramPacket receivedPacket = new DatagramPacket(buffer2, buffer2.length, InetAddress.getLocalHost(), 1001);
+        udpSocket.receive(receivedPacket);
+
+        //After the packet was received we proceed to clear the person.json file
+        //so we can parse the bytes received to this file and have both the BMI
+        //and health result
+        buffer2 = receivedPacket.getData();
+        clearJsonFile();
+        Path path = Paths.get("jsonFiles\\person.json");
+        Files.write(path, buffer2);
+        Scanner scanner = new Scanner(new FileReader("jsonFiles\\person.json"));
+        String resultJson = scanner.nextLine();
+        Person resultPerson = gson.fromJson(resultJson, Person.class);
+
+        //Finally we show the client the BMI and health result on the GUI
+        this.textBMI.setText(String.valueOf(resultPerson.getBmi()));
+        this.textResult.setText(resultPerson.getResult());
     }
 
     /**
@@ -54,6 +160,11 @@ public class FrmBMI extends javax.swing.JFrame {
         textBMI.setEnabled(false);
 
         calculateButton.setText("Calculate BMI");
+        calculateButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                calculateButtonActionPerformed(evt);
+            }
+        });
 
         jLabel5.setText("Result");
 
@@ -67,33 +178,34 @@ public class FrmBMI extends javax.swing.JFrame {
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(layout.createSequentialGroup()
                         .addGap(16, 16, 16)
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addGroup(layout.createSequentialGroup()
-                                .addComponent(jLabel1)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                                .addComponent(textName, javax.swing.GroupLayout.PREFERRED_SIZE, 204, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addGroup(layout.createSequentialGroup()
-                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                                    .addGroup(javax.swing.GroupLayout.Alignment.LEADING, layout.createSequentialGroup()
-                                        .addComponent(jLabel2)
-                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                        .addComponent(textWeight, javax.swing.GroupLayout.PREFERRED_SIZE, 1, Short.MAX_VALUE))
-                                    .addGroup(javax.swing.GroupLayout.Alignment.LEADING, layout.createSequentialGroup()
-                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                            .addComponent(jLabel3)
-                                            .addComponent(jLabel4))
-                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                            .addComponent(textBMI, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                            .addComponent(textHeight, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))))
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addComponent(jLabel3)
+                                    .addComponent(jLabel4))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                                    .addComponent(textBMI, javax.swing.GroupLayout.DEFAULT_SIZE, 103, Short.MAX_VALUE)
+                                    .addComponent(textHeight))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                                 .addComponent(jLabel5)
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                .addComponent(textResult))))
+                                .addComponent(textResult, javax.swing.GroupLayout.PREFERRED_SIZE, 92, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addGroup(layout.createSequentialGroup()
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addComponent(jLabel1)
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                        .addComponent(textName, javax.swing.GroupLayout.PREFERRED_SIZE, 204, javax.swing.GroupLayout.PREFERRED_SIZE))
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addComponent(jLabel2)
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                        .addComponent(textWeight, javax.swing.GroupLayout.PREFERRED_SIZE, 101, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                                .addGap(0, 45, Short.MAX_VALUE))))
                     .addGroup(layout.createSequentialGroup()
                         .addGap(85, 85, 85)
                         .addComponent(calculateButton)))
-                .addContainerGap(16, Short.MAX_VALUE))
+                .addGap(33, 33, 33))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -124,6 +236,19 @@ public class FrmBMI extends javax.swing.JFrame {
         pack();
         setLocationRelativeTo(null);
     }// </editor-fold>//GEN-END:initComponents
+
+    /**
+     * Event for the calculate button.
+     *
+     * @param evt
+     */
+    private void calculateButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_calculateButtonActionPerformed
+        try {
+            calculateBMI();
+        } catch (IOException ioe) {
+            errorMessage(ioe.getMessage());
+        }
+    }//GEN-LAST:event_calculateButtonActionPerformed
 
     /**
      * @param args the command line arguments
